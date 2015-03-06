@@ -51,10 +51,17 @@
       var sampleids = [];
 
 
+
+
+
       var start_demo = function() {
 
 
+        /*******
+          
+          Load JSON data
 
+        *******/
         d3.json("data/sampledata.json", function(error, json) {
 
 
@@ -63,14 +70,37 @@
 
           var training_vars = ["XXL-VLDL-L","XL-VLDL-L","L-VLDL-L","M-VLDL-L","S-VLDL-L","XS-VLDL-L","IDL-L","L-LDL-L","M-LDL-L","S-LDL-L","XL-HDL-L","L-HDL-L","M-HDL-L","S-HDL-L"];
         
-          var data_columns = prepare_data_columns(json.result.values, training_vars);
+
+          // Picks the specified values and sample ids from data object and arranges them in arrays.
+          // Strips missing values out of the data set
+          var res = prepare_data_columns(json.result.values, training_vars);
+
+          sampleids = res[0];
+          data_columns = res[1];
 
 
 
+          // Create a SOM object with 7 rows and 9 columns
+          //
+          // sampleids is an array of objects identifying each row in data columns. 
+          // objects can be of any format provided they are unique.
+          // 
+          // In this example the format is 
+          //
+          // sampleids = [{"sampleid" : "ID1", "dataset" : "DATASET1"}, {"sampleid" : "ID2", "dataset" : "DATASET1"}, ...]
+          //
+          // data_columns = [ [var1_1, var1_2, var1_3, ... ],  [var2_1, var2_2, ...],  ... ]
+          //
+          // data_columns[0].length == data_columns[1].length == ... == sampleids.length 
+          //
+          // SOM.js can't currently handle missing values (NaNs)
+          //
           _s = SOM.create(7,9, sampleids, data_columns);
 
 
-
+          //
+          // Train SOM in separate thread using Parallel.js
+          //
           function train_som(som_object) {
             SOM.train(som_object);
             return som_object;
@@ -78,7 +108,7 @@
 
           function finish_training(trained_som) {
             _s = trained_som;
-            make_component_planes();
+            make_component_planes(); // draw component planes after training
           }
 
           
@@ -98,6 +128,15 @@
             function get_component_plane(data) {
                 console.log('starting component plane calculation');
                 
+
+                // Calculating component plane
+                // 
+                // Arguments:
+                // 1. SOM object 
+                // 2. Sampleids for the data of which the component plane should be calculated
+                // 3. An array of data (No missing values tolerated!)
+                // 4. Variable name
+                //
                 return SOM.calculate_component_plane(global.env.som, global.env.sampleids, data.d, data.n);
             }
 
@@ -196,7 +235,7 @@
           }
         }
 
-        return data_columns;
+        return [sampleids, data_columns];
 
       }
 
