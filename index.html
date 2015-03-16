@@ -96,7 +96,7 @@
           // SOM.js can't currently handle missing values (NaNs)
           //
           _s = SOM.create(7,9, sampleids, data_columns);
-
+         
 
           //
           // Train SOM in separate thread using Parallel.js
@@ -118,8 +118,7 @@
           .require('vendor/lodash.min.js')
           .require('SOM.js')
           .map(train_som)
-          .then(finish_training);
-
+          .then(finish_training); 
           
 
 
@@ -196,7 +195,7 @@
 
         for(var i=0;i<dataobjectarray.length;i++) {
 
-          missing = false;
+          /*missing = false;
 
           for(var j=0;j<all_variables.length;j++) {
             if(isNaN(parseFloat(dataobjectarray[i].variables[all_variables[j]])) || 
@@ -208,9 +207,9 @@
             
           }
 
-          if(!missing) {
+          if(!missing) { */
             no_missing_data_array.push(dataobjectarray[i]);
-          }
+          //}
         }
 
         for(var j=0;j<training_vars.length;j++) { 
