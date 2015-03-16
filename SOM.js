@@ -30,7 +30,7 @@ SOM = function() {
 		som.coords = [];
 		som.samples = new Float32Array(som.N*som.M);
 
-		som.numEpochs = som.rows*som.cols * 0.2;
+		som.numEpochs = som.rows*som.cols * 0.5;
 		som.start_neigh_dist = Math.max(som.rows,som.cols);
 		som.end_neigh_dist = 0.5;
 		som.input_min = [];
