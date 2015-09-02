@@ -1,182 +1,373 @@
-
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-          "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>SOM</title>
-    <script>
-      
-    </script>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title></title>
 
 
     <link href="css/style.css" rel="stylesheet" type="text/css">
 
-    <script src="vendor/jquery-2.1.3.min.js"></script>
-    <script src="vendor/d3.v3.min.js" charset="utf-8"></script>
-    <script type="text/javascript" src="vendor/hexbin.js"></script>
+
+
+  <script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
+  <script src="vendor/d3.v3.min.js" charset="utf-8"></script>
+  <script type="text/javascript" src="vendor/hexbin.js"></script>
     <script type="text/javascript" src="vendor/lodash.min.js"></script>
-    <script type="text/javascript" src="vendor/parallel.js"></script>
-    
+
+<script src="//code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+  <script type='text/javascript' src="https://ajax.googleapis.com/ajax/libs/angularjs/1.2.0-rc.2/angular.js"></script>
+  <script type='text/javascript' src="vendor/lodash.min.js"></script>
+  <script type='text/javascript' src="src/services-webworker.js"></script>
+  <script type="text/javascript" src="src/templates-common.js"></script>
+  <script type='text/javascript' src="src/utilities.som.js"></script>
+  <script type='text/javascript' src="src/services-som.js"></script>
+
+ 
+
+
+</head>
+<body>
+  <div ng-app="mainApp">
   
-    <script type="text/javascript" src="SOM.js"></script>
-    
-  </head>
-  <body>
+  <div ng-controller="SOMController">
 
-    <!-- SPINNER -->
-    <div id="spinner-container">
-      <div class="spinner">
-        <div class="double-bounce1"></div>
-        <div class="double-bounce2"></div>
-      </div>
+    <h2>SOM test (N=<span ng-bind="NumRows"></span>)</h2>
+
+    <div id="status" ng-bind="Task"></div>
+
+    <div id="progressbar">
+      <span ng-style="{'width': Progress}" ></span>
     </div>
-
-
-
 
     <div id="planes"></div>
     
+     
+  </div>
+</div>
+
+
+
+
+<script type='text/javascript'>//<![CDATA[
+
   
 
 
-    <script type="text/javascript">
+  // Module for injecting lodash
+  angular.module('ext.lodash', []).factory('_', function lodash() {
+      return window._;
+  });
 
 
 
-      // Globals 
-      var _s;
-      var p;
+
+  // Main app
+  var mainApp = angular.module("mainApp",
+      [ 'templates-common', 
+        'services.webworker',
+        'ext.lodash',
+        'services.som']);
+
+
+
+
+
+  mainApp.controller('SOMController', 
+    function($scope, $q, $timeout, WebWorkerService, SOMService) {
+
+  
+      var _s; // SOM object
       var dummy_data;
       var data_columns = [];
       var sampleids = [];
 
 
 
-      var start_demo = function() {
+
+      d3.json("data/sampledata.json", function(error, json) {
+
+        if (error) return console.warn(error);
 
 
-        /*******
-          
-          Load JSON data
-
-        *******/
-        d3.json("data/sampledata.json", function(error, json) {
-
-
-          if (error) return console.warn(error);
-
-
-          var training_vars = ["XXL-VLDL-L","XL-VLDL-L","L-VLDL-L","M-VLDL-L","S-VLDL-L","XS-VLDL-L","IDL-L","L-LDL-L","M-LDL-L","S-LDL-L","XL-HDL-L","L-HDL-L","M-HDL-L","S-HDL-L"];
+        var training_vars = 
+          [ "XXL-VLDL-L","XL-VLDL-L","L-VLDL-L","M-VLDL-L",
+            "S-VLDL-L","XS-VLDL-L","IDL-L","L-LDL-L","M-LDL-L",
+            "S-LDL-L","XL-HDL-L","L-HDL-L","M-HDL-L","S-HDL-L"];
+      
+        // Picks the specified values and sample ids from data object 
+        // and arranges them in arrays.
+        
         
 
-          // Picks the specified values and sample ids from data object and arranges them in arrays.
-          // Strips missing values out of the data set
-          var res = prepare_data_columns(json.result.values, training_vars);
+        var res = prepare_data_columns(json.result.values, training_vars);
 
-          sampleids = res[0];
-          data_columns = res[1];
+        sampleids = res.sampleids;
+        data_columns = res.data_columns;
+
+        $scope.Task = "Initializing...";
+        $scope.NumRows = sampleids.length;
+        
+        SOMService.create(7,9, sampleids, data_columns).then(
+
+          function(result) {
+
+            _s = result.som;
+            
+            $scope.Task = "Training...";
+
+            SOMService.train(_s).then(function(res){
+            // success
+            console.log('trained!');
 
 
+            make_component_planes();
 
-          // Create a SOM object with 7 rows and 9 columns
-          //
-          // sampleids is an array of objects identifying each row in data columns. 
-          // objects can be of any format provided they are unique.
-          // 
-          // In this example the format is 
-          //
-          // sampleids = [{"sampleid" : "ID1", "dataset" : "DATASET1"}, {"sampleid" : "ID2", "dataset" : "DATASET1"}, ...]
-          //
-          // data_columns = [ [var1_1, var1_2, var1_3, ... ],  [var2_1, var2_2, ...],  ... ]
-          //
-          // data_columns[0].length == data_columns[1].length == ... == sampleids.length 
-          //
-          // SOM.js can't currently handle missing values (NaNs)
-          //
-          _s = SOM.create(7,9, sampleids, data_columns);
-         
+            }, function(err) {
+                console.log('Error '+err);
+            // error
+            }, function(percentComplete) {
+            // notify
+            $scope.Progress =  (4*percentComplete) + 'px';
 
-          //
-          // Train SOM in separate thread using Parallel.js
-          //
-          function train_som(som_object) {
-            SOM.train(som_object);
-            return som_object;
+            }); 
+          },
+          function() {},
+
+          function(percentComplete) {
+            // notify
+            $scope.Progress =  (4*percentComplete) + 'px';
+            
           }
 
-          function finish_training(trained_som) {
-            _s = trained_som;
-            make_component_planes(); // draw component planes after training
+        ); 
+
+
+
+        // Picks the specified values and sample ids from data object 
+        // and arranges them in arrays.
+      /* var res = prepare_data_columns(json.result.values, training_vars);
+
+        
+
+        sampleids = res[0];
+        data_columns = res[1];
+        
+        _s_no_worker = SOMService.create(7,9, sampleids, data_columns, false);
+
+        console.log('SOM object, no worker');
+        console.log(_s_no_worker);
+
+        SOMService.train(_s_no_worker).then(function(res){
+            // success
+            console.log('trained!');
+           // make_component_planes();
+
+          }, function() {
+            // error
+          }, function(percentComplete) {
+            // notify
+            $scope.Progress =  (4*percentComplete) + 'px';
+            
+          }); */
+
+
+
+        // Create SOM
+       /* SOMService.create(7,9, sampleids, data_columns).then(
+          function(result) {
+            _s = result.som;
+
+
+
+          // SOM training returns a promise
+          SOMService.train(_s).then(function(res){
+            // success
+            console.log('trained!');
+
+            make_component_planes();
+
+          }, function() {
+            // error
+          }, function(percentComplete) {
+            // notify
+            $scope.Progress =  (4*percentComplete) + 'px';
+            
+          }); 
+
+
+
           }
 
-          
-          p = new Parallel(_s, {
-            evalPath: 'eval.js'
-          })
-          .require('vendor/lodash.min.js')
-          .require('SOM.js')
-          .map(train_som)
-          .then(finish_training); 
-          
+        ); */
 
 
-          function make_component_planes() {
+      
 
-            function get_component_plane(data) {
-                console.log('starting component plane calculation');
+        
+        
+
+        function make_component_planes() {
+
+            var plane_spec =  [{name: 'Alanine', data: dummy_data.Ala}, 
+                                    {name: 'HDL-C', data: dummy_data['HDL-C'] }, 
+                                    {name: 'Phenylalanine', data: dummy_data['Phe']},
+                                    {name: 'Serum-TG', data: dummy_data['Serum-TG']},
+                                    {name: 'Glucose', data: dummy_data['Glc']},
+                                    {name: 'LDL-C', data: dummy_data['LDL-C']},
+                                    {name: 'Tyrosine', data: dummy_data['Tyr']},
+                                    {name: 'Remnant-C', data: dummy_data['Remnant-C']},
+                                    ];
+
+            var planes_drawn = 0;
+
+
+            $scope.Task = "Drawing component plane for " + plane_spec[0].name;
+
+            SOMService.calculate_component_plane( 
+              _s, 
+              sampleids, 
+              plane_spec[0].data, 
+              plane_spec[0].name
+            ).then( // returns a promise
+              draw_plane_and_do_next,  // success
+              undefined,  // error
+              report_progress //notify
+            );
+
+
+            
+
+            function draw_plane_and_do_next(res) {
                 
-
-                // Calculating component plane
-                // 
-                // Arguments:
-                // 1. SOM object 
-                // 2. Sampleids for the data of which the component plane should be calculated
-                // 3. An array of data (No missing values tolerated!)
-                // 4. Variable name
-                //
-                return SOM.calculate_component_plane(global.env.som, global.env.sampleids, data.d, data.n);
-            }
-
-            function draw(results) {
-              console.log('component plane results');
-                console.log(results);
                 $("#spinner-container").hide();
-                for(i in results) {
-                  draw_plane(results[i], '#planes');
+
+                draw_plane(res.plane, '#planes');
+
+                planes_drawn++;
+                
+                if(planes_drawn < plane_spec.length) {
+                    
+                    $scope.Task = "Drawing component plane for " + plane_spec[planes_drawn].name;
+                    SOMService.calculate_component_plane( 
+                      _s, 
+                      sampleids, 
+                      plane_spec[planes_drawn].data, 
+                      plane_spec[planes_drawn].name
+                    ).then( // returns a promise
+                      draw_plane_and_do_next,  // success
+                      undefined,  // error
+                      report_progress //notify
+                    );
+
+
+                } else {
+                  $scope.Task = "Done!";
                 }
+
             }
 
-            var p = new Parallel( [ {n: 'Alanine', d: dummy_data.Ala}, 
-                                    {n: 'HDL-C', d: dummy_data['HDL-C'] }, 
-                                    {n: 'Phenylalanine', d: dummy_data['Phe']},
-                                    {n: 'Serum-TG', d: dummy_data['Serum-TG']},
-                                    {n: 'Glucose', d: dummy_data['Glc']},
-                                    {n: 'LDL-C', d: dummy_data['LDL-C']},
-                                    {n: 'Tyrosine', d: dummy_data['Tyr']},
-                                    {n: 'Remnant-C', d: dummy_data['Remnant-C']},
-                                    ], {
-              evalPath: 'eval.js',
-              env : {
-                som: _s,
-                sampleids: sampleids
-              }
-            })
-            .require('vendor/lodash.min.js')
-            .require('SOM.js')
-            .map(get_component_plane)
-            .then(draw);
+
+            function report_progress(progress) {
+              $scope.Progress =  (4*progress) + 'px';
+            }
 
 
+  
+          }
+            
+      });
+
+    
+
+
+
+      function draw_plane(plane, elem) {
+
+        var labelFormat = d3.format('.2f');
+
+        var margin = {
+          top: 30,
+          right: 30,
+          bottom: 30,
+          left: 30
+        },
+        
+        
+        width = 500;
+        height = width * 0.75;
+
+        var rows = plane.size.m;
+        var cols = plane.size.n;
+
+        var hexRadius = Math.floor((width / cols)*0.5);
+        var points = [];
+
+
+
+        for(var k in plane.cells)  {
+            var cell = plane.cells[k];
+            var datarow = [hexRadius * cell.x * 1.75, hexRadius * cell.y * 1.5, cell.color];
+            points.push(datarow);
           }
 
-              
+
+        
+
+        var hexbin = d3.hexbin()
+            .radius(hexRadius);
+
+
+        var container = d3.select(elem).insert("div", ":first-child");
+
+        container.style('opacity' , 0);
+
+        container.append("p").attr("class","variable").text(plane.variable);
+
+        var svg = container.append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        svg.append("g")
+            .selectAll(".hexagon")
+            .data(hexbin(points))
+            .enter().append("path")
+            .attr("class", "hexagon")
+            .attr("d", function (d) {
+            return "M" + d.x + "," + d.y + hexbin.hexagon();
+        })
+            .attr("stroke", "#fff")
+            .attr("stroke-width", "2px")
+            .style("fill", function (d) {
+              return d[0][2];
+            /*return d3.rgb(255-d[0][2]*255,255-d[0][2]*255,255-d[0][2]*255).toString(); */
         });
 
+
+
+        svg.append("g")
+              .selectAll(".label")
+              .data(plane.labels)
+              .enter()
+              .append("text")
+              .attr("class", "label noselect")
+              .attr('text-anchor', 'middle')
+              .attr('alignment-baseline', 'middle')
+              .attr("x", function(d) { 
+                var x = d.x;
+                var y = d.y;
+                if( (y % 2) === 0 ) { return x*hexRadius*1.75; }
+                if( (y % 2) === 1 ) { return hexRadius*0.75 + x*hexRadius*1.75; }
+              })
+              .attr("y", function(d) { 
+                return (d.y) * hexRadius * 1.5;
+              })
+              .style("fill", function(d) { return d.color; })
+              .text( function(d) { return labelFormat( +d.label ); });       
+
+        container.transition().delay(1000).duration(500).style('opacity',1);
       }
-
-
 
 
 
@@ -228,112 +419,28 @@
         dummy_data = {};
 
         for(var key in dataobjectarray[0].variables) {
-          dummy_data[key] = new Float32Array(no_missing_data_array.length);
+          dummy_data[key] = new Array(no_missing_data_array.length);
           for(var i=0;i<no_missing_data_array.length;i++) {
             dummy_data[key][i] = no_missing_data_array[i].variables[key];
           }
         }
 
-        return [sampleids, data_columns];
+        return {'sampleids' : sampleids, 'data_columns' : data_columns};
 
       }
 
 
 
-      function draw_plane(plane, elem) {
 
-        var labelFormat = d3.format('.2f');
-
-        var margin = {
-          top: 30,
-          right: 30,
-          bottom: 30,
-          left: 30
-        },
-        
-        
-        width = 500;
-        height = width * 0.75;
-
-        var rows = plane.size.m;
-        var cols = plane.size.n;
-
-        var hexRadius = Math.floor((width / cols)*0.5);
-        var points = [];
+  });
 
 
 
-        for(var k in plane.cells)  {
-            var cell = plane.cells[k];
-            var datarow = [hexRadius * cell.x * 1.75, hexRadius * cell.y * 1.5, cell.color];
-            points.push(datarow);
-          }
+//]]> 
 
+</script>
 
-        
-
-
-        var hexbin = d3.hexbin()
-            .radius(hexRadius);
-
-
-        var container = d3.select(elem).append("div");
-
-        container.append("p").attr("class","variable").text(plane.variable);
-
-        var svg = container.append("svg")
-            .attr("width", width + margin.left + margin.right)
-            .attr("height", height + margin.top + margin.bottom)
-            .append("g")
-            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-        svg.append("g")
-            .selectAll(".hexagon")
-            .data(hexbin(points))
-            .enter().append("path")
-            .attr("class", "hexagon")
-            .attr("d", function (d) {
-            return "M" + d.x + "," + d.y + hexbin.hexagon();
-        })
-            .attr("stroke", "#fff")
-            .attr("stroke-width", "2px")
-            .style("fill", function (d) {
-              return d[0][2];
-            /*return d3.rgb(255-d[0][2]*255,255-d[0][2]*255,255-d[0][2]*255).toString(); */
-        });
-
-
-
-        svg.append("g")
-              .selectAll(".label")
-              .data(plane.labels)
-              .enter()
-              .append("text")
-              .attr("class", "label noselect")
-              .attr('text-anchor', 'middle')
-              .attr('alignment-baseline', 'middle')
-              .attr("x", function(d) { 
-                var x = d.x;
-                var y = d.y;
-                if( (y % 2) === 0 ) { return x*hexRadius*1.75; }
-                if( (y % 2) === 1 ) { return hexRadius*0.75 + x*hexRadius*1.75; }
-              })
-              .attr("y", function(d) { 
-                return (d.y) * hexRadius * 1.5;
-              })
-              .style("fill", function(d) { return d.color; })
-              .text( function(d) { return labelFormat( +d.label ); });              
-      }
-
-
-
-
-      start_demo();
-
-
-    </script>
-
-
-  </body>
+  
+</body>
 
 </html>
