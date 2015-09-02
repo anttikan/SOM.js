@@ -22,7 +22,7 @@
   <script type='text/javascript' src="src/utilities.som.js"></script>
   <script type='text/javascript' src="src/services-som.js"></script>
 
- 
+
 
 
 </head>
@@ -143,65 +143,10 @@
 
 
 
-        // Picks the specified values and sample ids from data object 
-        // and arranges them in arrays.
-      /* var res = prepare_data_columns(json.result.values, training_vars);
-
-        
-
-        sampleids = res[0];
-        data_columns = res[1];
-        
-        _s_no_worker = SOMService.create(7,9, sampleids, data_columns, false);
-
-        console.log('SOM object, no worker');
-        console.log(_s_no_worker);
-
-        SOMService.train(_s_no_worker).then(function(res){
-            // success
-            console.log('trained!');
-           // make_component_planes();
-
-          }, function() {
-            // error
-          }, function(percentComplete) {
-            // notify
-            $scope.Progress =  (4*percentComplete) + 'px';
-            
-          }); */
 
 
 
-        // Create SOM
-       /* SOMService.create(7,9, sampleids, data_columns).then(
-          function(result) {
-            _s = result.som;
 
-
-
-          // SOM training returns a promise
-          SOMService.train(_s).then(function(res){
-            // success
-            console.log('trained!');
-
-            make_component_planes();
-
-          }, function() {
-            // error
-          }, function(percentComplete) {
-            // notify
-            $scope.Progress =  (4*percentComplete) + 'px';
-            
-          }); 
-
-
-
-          }
-
-        ); */
-
-
-      
 
         
         
