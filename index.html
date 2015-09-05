@@ -68,12 +68,12 @@
         'ext.lodash',
         'services.som']);
 
-
-
-
+  mainApp.run(function(SOMComputeService) {
+    SOMComputeService.noWorkers(4);
+  });
 
   mainApp.controller('SOMController', 
-    function($scope, $q, $timeout, WebWorkerService, SOMService) {
+    function($scope, $q, $timeout, WebWorkerService, SOMComputeService) {
 
   
       var _s; // SOM object
@@ -107,7 +107,7 @@
         $scope.Task = "Initializing...";
         $scope.NumRows = sampleids.length;
         
-        SOMService.create(7,9, sampleids, data_columns).then(
+        SOMComputeService.create(7,9, sampleids, data_columns).then(
 
           function(result) {
 
@@ -115,7 +115,7 @@
             
             $scope.Task = "Training...";
 
-            SOMService.train(_s).then(function(res){
+            SOMComputeService.train(_s).then(function(res){
             // success
             console.log('trained!');
 
@@ -168,7 +168,7 @@
 
             $scope.Task = "Drawing component plane for " + plane_spec[0].name;
 
-            SOMService.calculate_component_plane( 
+            SOMComputeService.calculate_component_plane( 
               _s, 
               sampleids, 
               plane_spec[0].data, 
@@ -193,7 +193,7 @@
                 if(planes_drawn < plane_spec.length) {
                     
                     $scope.Task = "Drawing component plane for " + plane_spec[planes_drawn].name;
-                    SOMService.calculate_component_plane( 
+                    SOMComputeService.calculate_component_plane( 
                       _s, 
                       sampleids, 
                       plane_spec[planes_drawn].data, 
