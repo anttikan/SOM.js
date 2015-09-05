@@ -448,7 +448,6 @@ angular.module('akangas.services.som', [
   //-------------------------------------------------------------------------------------------------------
   function calculate_component_plane(som, sampleids, data_column, variable_name) {
     function doQueue(deferred, som, data_column) {
-      console.log("doQueue called");
       var queueWithoutMe = _.without(_planeQueue, deferred.promise);
       $q.all(queueWithoutMe).then(function succFn(res) {
           doDefault(deferred, som, data_column);
@@ -666,8 +665,7 @@ angular.module('akangas.services.som', [
 
         var pvalue = 1 - normalcdf(null_mean, null_stddev, plane_variance);
 
-        console.log('pvalue ');
-        console.log(pvalue);
+        console.log('pvalue ', pvalue);
         // SMoothing
 
         SOMUtils.update_weights(som, 1.5);
