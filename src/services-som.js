@@ -6,101 +6,191 @@ angular.module('services.som', [
 .factory('SOMComputeService', function SOMComputeService($q, WebWorkerService, _) {
 
   var _num_workers = 4,
-  that = this;
+    that = this,
+    _planeWorkers = [],
+    _trainWorkers = [],
+    _initWorker = null,
+    _initQueue = [],
+    _planeQueue = [],
+    _trainQueue = [];
+
+  function cancel() {
+    _.chain(_.union(_planeWorkers, _trainWorkers, _initWorker))
+      .each(function(worker) {
+        worker.terminate();
+      })
+      .value();
+    _planeWorkers.length = 0;
+    _trainWorkers.length = 0;
+    _initWorker = null;
+    return that;
+  }
 
   function noWorkers(x) {
-    if(!arguments.length) { return _num_workers; }
+    if (!arguments.length) {
+      return _num_workers;
+    }
     _num_workers = x;
     return that;
   }
 
+  function inProgress(promises, workers) {
+    console.log("inProgress", promises, workers);
+    return !_.isEmpty(promises) ||
+      _.any(workers, function(ww) {
+        return ww.isBusy();
+      });
+  }
+
+  function initWorkers(count) {
+    function getInitWorker() {
+      var absUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+      var worker = WebWorkerService.create()
+        .script(set_training_data)
+        .addDependency(absUrl + 'vendor/' + 'lodash.min.js')
+        .addDependency(absUrl + 'src/' + 'utilities.som.js')
+        .onTerminate(function() {});
+      return worker;
+    }
+
+    function getTrainWorkers() {
+      var absUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+      return _.times(count, function() {
+        var worker = WebWorkerService
+          .create()
+          .script(get_best_matching_units_ww)
+          .addDependency(absUrl + 'vendor/' + 'lodash.min.js')
+          .addDependency(absUrl + 'src/' + 'utilities.som.js')
+          .onTerminate(function() {});
+        return worker;
+      });
+    }
+
+    function getPlaneWorkers() {
+      var absUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+      return _.times(count, function() {
+        var worker = WebWorkerService
+          .create()
+          .script(calculate_permutations)
+          .addDependency(absUrl + 'vendor/' + 'lodash.min.js')
+          .addDependency(absUrl + 'src/' + 'utilities.som.js')
+          .onTerminate(function() {});
+        return worker;
+      });
+    }
+
+    _initWorker = getInitWorker();
+    _trainWorkers = getTrainWorkers();
+    _planeWorkers = getPlaneWorkers();
+  }
+
+  function checkWorkers() {
+    if (!_trainWorkers.length) {
+      initWorkers(_num_workers);
+    }
+  }
+
+  initWorkers(_num_workers);
 
   function create(rows, cols, sampleids, data) {
-    var withworker = true;
-    console.log('Initializing SOM..');
+    function doDefault(deferred, payload) {
+      var workerPromise = _initWorker.run(payload);
 
-    var som = {};
-    som.epoch = 0;
-    som.rows = rows;
-    som.cols = cols;
-    som.M = data.length;
-    som.N = sampleids.length;
-    som.num_workers = _num_workers;
-    // som.num_workers = 4;
-    // som.batch_sample_size = 200;
-    som.sampleids = [];
+      workerPromise.then(function succFn(result) {
+            // worker.terminate();
+            // worker = undefined;
+            deferred.resolve({
+              'som': result.payload.som
+            });
+          },
+          function errFn(err) {
+            console.log(['error', err]);
+          },
 
-    console.log('Creating SOM of ' + sampleids.length + ' samples');
+          function notifyFn(progress) {
+            deferred.notify(progress);
+          }
+        )
+        .finally(function() {
+          _.remove(_initQueue, function(d) {
+            return d == deferred.promise;
+          });
+        });
+    }
 
-    som.variablenames = [];
+    function doQueue(deferred, payload) {
+      var queueWithoutMe = _.without(_initQueue, deferred.promise);
+      $q.all(queueWithoutMe).then(function succFn(res) {
+          doDefault(deferred, payload);
+        }, function errFn(reason) {
+          console.log("error!", reason);
+        })
+        .finally(function() {
+          _.remove(_initQueue, function(p) {
+            return p !== deferred.promise;
+          });
+        });
+    }
 
-    som.codebook = [];
-    som.distances = [];
-    som.weights = [];
+    function getObject() {
+      console.log('Initializing SOM..');
 
-    som.maxdistance = 0;
-    som.coords = [];
-    som.samples = new Float32Array(som.N * som.M);
+      var som = {};
+      som.epoch = 0;
+      som.rows = rows;
+      som.cols = cols;
+      som.M = data.length;
+      som.N = sampleids.length;
+      // som.batch_sample_size = 200;
+      som.sampleids = [];
 
-    som.numEpochs = som.rows * som.cols * 0.5;
-    som.start_neigh_dist = Math.max(som.rows, som.cols);
-    som.end_neigh_dist = 0.5;
-    som.input_min = [];
-    som.input_max = [];
-    som.neighdist = som.start_neigh_dist;
-    som.bmus = new Float32Array(som.N);
+      console.log('Creating SOM of ' + sampleids.length + ' samples');
 
+      som.variablenames = [];
+
+      som.codebook = [];
+      som.distances = [];
+      som.weights = [];
+
+      som.maxdistance = 0;
+      som.coords = [];
+      som.samples = new Float32Array(som.N * som.M);
+
+      som.numEpochs = som.rows * som.cols * 0.5;
+      som.start_neigh_dist = Math.max(som.rows, som.cols);
+      som.end_neigh_dist = 0.5;
+      som.input_min = [];
+      som.input_max = [];
+      som.neighdist = som.start_neigh_dist;
+      som.bmus = new Float32Array(som.N);
+
+      return som;
+    }
+
+    var withworker = true,
+      som = getObject();
 
     if (withworker) {
-
-      var deferred = $q.defer();
-
       console.log('Using worker to init SOM');
 
-      var absUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+      checkWorkers();
 
-      var worker = WebWorkerService.create();
-      worker.script(set_training_data);
-      worker.addDependency(absUrl + 'vendor/' + 'lodash.min.js');
-      worker.addDependency(absUrl + 'src/' + 'utilities.som.js');
-      worker.onTerminate(function() {});
-
-
-      var obj = {
+      var payload = {
         'num_workers': _num_workers,
         'som': som,
         'sampleids': sampleids,
         'data': data
       };
 
-      var workerPromise = worker.run(obj);
+      var deferred = $q.defer();
+      // _queueWindows.push(windowObject);
+      _initQueue.push(deferred.promise);
 
-
-      workerPromise.then(
-
-        function(result) {
-
-          worker.terminate();
-          worker = undefined;
-
-
-          deferred.resolve({
-            'som': result.payload.som
-          });
-        },
-
-        function(err) {
-
-          console.log(['error', err]);
-
-        },
-
-        function(progress) {
-          deferred.notify(progress);
-
-        }
-      );
-
+      if (inProgress(_initQueue, [_initWorker])) {
+        doQueue(deferred, payload);
+      } else {
+        doDefault(deferred, payload);
+      }
 
       return deferred.promise;
 
@@ -345,371 +435,361 @@ angular.module('services.som', [
 
   //-------------------------------------------------------------------------------------------------------
   function calculate_component_plane(som, sampleids, data_column, variable_name) {
-
-
-    data_column = ensureFloat32Array(data_column);
-    som.codebook = ensureFloat32Array(som.codebook);
-    som.samples = ensureFloat32Array(som.samples);
-    som.distances = ensureFloat32Array(som.distances);
-    som.bmus = ensureFloat32Array(som.bmus);
-    som.weights = ensureFloat32Array(som.weights);
-
-
-    console.log('calculating component plane');
-
-    som.bmus = SOMUtils.get_best_matching_units(som.M, som.N, som.codebook, som.samples);
-
-    valuearr = [];
-    var index, i = 0;
-
-    var currentbmusarr = [];
-
-    for (i = 0; i < data_column.length; i++) {
-
-      index = _.findIndex(som.sampleids, sampleids[i]);
-      if (index < 0) {
-        console.log('Sample' + sampleids[i] + " not found");
-        continue;
-      }
-
-      if (!isNaN(data_column[i])) {
-        valuearr.push(data_column[i]);
-        currentbmusarr.push(som.bmus[index]);
-      }
-
+    function doQueue(deferred, som, data_column) {
+      console.log("doQueue called");
+      var queueWithoutMe = _.without(_planeQueue, deferred.promise);
+      $q.all(queueWithoutMe).then(function succFn(res) {
+          doDefault(deferred, som, data_column);
+        }, function errFn(reason) {
+          console.log("error!", reason);
+        })
+        .finally(function() {
+          _.remove(_planeQueue, function(p) {
+            return p !== deferred.promise;
+          });
+        });
     }
 
-    values = new Float32Array(valuearr.length);
-    currentbmus = new Float32Array(valuearr.length);
+    function doDefault(deferred, som, data_column) {
+      data_column = ensureFloat32Array(data_column);
+      som.codebook = ensureFloat32Array(som.codebook);
+      som.samples = ensureFloat32Array(som.samples);
+      som.distances = ensureFloat32Array(som.distances);
+      som.bmus = ensureFloat32Array(som.bmus);
+      som.weights = ensureFloat32Array(som.weights);
 
-    for (i = 0; i < valuearr.length; i++) {
-      values[i] = valuearr[i];
-      currentbmus[i] = currentbmusarr[i];
-    }
+      som.bmus = SOMUtils.get_best_matching_units(som.M, som.N, som.codebook, som.samples);
 
-    //console.log(values);
+      valuearr = [];
+      var index, i = 0;
 
+      var currentbmusarr = [];
 
-    var color_scale = ["#4682b4", "#5e8fbc", "#759dc5",
-      "#89a9cd", "#9db8d5", "#b1c6de",
-      "#c5d3e6", "#d8e1ee", "#ecf0f7",
-      "#ffffff", "#fff1ef", "#ffe5e0",
-      "#ffd7cf", "#ffc9c0", "#ffbbb0",
-      "#ffada0", "#ff9d90", "#fd8f80", "#fa8072"
-    ];
+      for (i = 0; i < data_column.length; i++) {
 
-
-    var average_values = new Float32Array(som.rows * som.cols);
-
-    var samples_in_cell = new Int16Array(som.rows * som.cols);
-
-
-    // Random permutations
-
-    var Nperm = 4000;
-    var shuffled_bmus;
-    var variances = new Float32Array(Nperm);
-    var plane_mean;
-    var plane_variance;
-
-
-    var deferred = $q.defer();
-
-
-    //  Creating workers
-    var absUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
-
-    var workers = [];
-
-    for (var w = 0; w < _num_workers; w++) {
-      workers[w] = WebWorkerService.create();
-      workers[w].script(calculate_permutations);
-      workers[w].addDependency(absUrl + 'vendor/' + 'lodash.min.js');
-      workers[w].addDependency(absUrl + 'src/' + 'utilities.som.js');
-      workers[w].onTerminate(function() {});
-    }
-
-
-    // Running workers, storing promises
-    var workerPromises = [];
-
-
-    for (w = 0; w < _num_workers; w++) {
-
-      var obj = {
-        rows: som.rows,
-        cols: som.cols,
-        bmus: currentbmus,
-        codebook: som.codebook,
-        values: values,
-        nperm: Nperm / _num_workers
-      };
-      workerPromises[w] = workers[w].run(obj);
-
-    }
-
-    workerPromises[0].then(function() {}, function(err) {
-      console.log(['error', err]);
-    }, function(progress) {
-
-      deferred.notify(progress);
-
-    });
-
-
-    var date1 = new Date();
-
-
-    $q.all(workerPromises).then(calculate_plane_summary, function errFn(reasons) {
-
-      console.log('error', reasons);
-
-    });
-
-
-
-    function calculate_plane_summary(results) {
-      var variances = results[0].payload.variances;
-
-      for (var w = 1; w < _num_workers; w++) {
-
-        variances = Float32Concat(variances, results[w].payload.variances);
-        workers[w].terminate();
-        workers[w] = undefined;
-
-      }
-
-
-      var null_mean = 0;
-      var null_stddev = 0;
-
-      for (var it = 0; it < Nperm; it++) {
-        null_mean += variances[it];
-      }
-
-      null_mean = null_mean / Nperm;
-
-      for (it = 0; it < Nperm; it++) {
-        null_stddev += ((variances[it] - null_mean) * (variances[it] - null_mean));
-      }
-
-      null_stddev = Math.sqrt(null_stddev / Nperm);
-
-      // Final coloring
-
-      var data_mean = 0;
-      var N_not_nan = 0;
-
-      for (var i = 0; i < som.rows * som.cols; i++) {
-        average_values[i] = 0;
-        samples_in_cell[i] = 0;
-      }
-
-      for (i = 0; i < currentbmus.length; i++) {
-        average_values[currentbmus[i]] += values[i];
-        samples_in_cell[currentbmus[i]] ++;
-        data_mean += values[i];
-        N_not_nan++;
-      }
-
-      data_mean = data_mean / N_not_nan;
-
-      plane_mean = 0;
-      plane_variance = 0;
-
-
-      // Calculating averages for each cell
-      for (i = 0; i < som.rows * som.cols; i++) {
-
-        if (samples_in_cell[i] > 0) {
-
-          average_values[i] = average_values[i] / samples_in_cell[i];
+        index = _.findIndex(som.sampleids, sampleids[i]);
+        if (index < 0) {
+          console.log('Sample' + sampleids[i] + " not found");
+          continue;
         }
+
+        if (!isNaN(data_column[i])) {
+          valuearr.push(data_column[i]);
+          currentbmusarr.push(som.bmus[index]);
+        }
+
       }
 
+      values = new Float32Array(valuearr.length);
+      currentbmus = new Float32Array(valuearr.length);
 
-      for (i = 0; i < som.rows * som.cols; i++) {
-        // If no samples in cell, interpolate value from surroundings
-        if (samples_in_cell[i] === 0) {
+      for (i = 0; i < valuearr.length; i++) {
+        values[i] = valuearr[i];
+        currentbmus[i] = currentbmusarr[i];
+      }
 
+      var color_scale = ["#4682b4", "#5e8fbc", "#759dc5",
+        "#89a9cd", "#9db8d5", "#b1c6de",
+        "#c5d3e6", "#d8e1ee", "#ecf0f7",
+        "#ffffff", "#fff1ef", "#ffe5e0",
+        "#ffd7cf", "#ffc9c0", "#ffbbb0",
+        "#ffada0", "#ff9d90", "#fd8f80", "#fa8072"
+      ];
+
+      var average_values = new Float32Array(som.rows * som.cols);
+      var samples_in_cell = new Int16Array(som.rows * som.cols);
+
+      // Random permutations
+
+      var Nperm = 4000;
+      var shuffled_bmus;
+      var variances = new Float32Array(Nperm);
+      var plane_mean;
+      var plane_variance;
+
+      // Running workers, storing promises
+      var workerPromises = [];
+
+      for (w = 0; w < _num_workers; w++) {
+
+        var obj = {
+          rows: som.rows,
+          cols: som.cols,
+          bmus: currentbmus,
+          codebook: som.codebook,
+          values: values,
+          nperm: Nperm / _num_workers
+        };
+        workerPromises[w] = _planeWorkers[w].run(obj);
+
+      }
+
+      // so that all workers can pass notify information
+      _.each(workerPromises, function(prom) {
+        prom.then(function succFn() {}, function errFn(err) {
+          console.log("error", err);
+        }, function notifyFn(progress) {
+          deferred.notify(progress);
+        });
+      });
+
+      var date1 = new Date();
+
+      $q.all(workerPromises).then(function succFn(results) {
+        deferred.notify(100);
+        var plane = calculate_plane_summary(results);
+
+        deferred.resolve(plane);
+      }, function errFn(reasons) {
+          console.log('error', reasons);
+      })
+      .finally(function() {
+        // finished, clear from queue
+        _.remove(_planeQueue, function(d) {
+          return d == deferred.promise;
+        });
+      });
+
+      function calculate_plane_summary(results) {
+        var variances = results[0].payload.variances;
+
+        for (var w = 1; w < _num_workers; w++) {
+
+          variances = Float32Concat(variances, results[w].payload.variances);
+          // workers[w].terminate();
+          // workers[w] = undefined;
+        }
+
+
+        var null_mean = 0;
+        var null_stddev = 0;
+
+        for (var it = 0; it < Nperm; it++) {
+          null_mean += variances[it];
+        }
+
+        null_mean = null_mean / Nperm;
+
+        for (it = 0; it < Nperm; it++) {
+          null_stddev += ((variances[it] - null_mean) * (variances[it] - null_mean));
+        }
+
+        null_stddev = Math.sqrt(null_stddev / Nperm);
+
+        // Final coloring
+
+        var data_mean = 0;
+        var N_not_nan = 0;
+
+        for (var i = 0; i < som.rows * som.cols; i++) {
           average_values[i] = 0;
-          cw = 0;
-          for (var j = 0; j < som.rows * som.cols; j++) {
+          samples_in_cell[i] = 0;
+        }
 
-            if (samples_in_cell[j] > 0) {
-              w = som.weights[j * som.rows * som.cols + i];
-              cw += w;
-              average_values[i] += w * average_values[j];
+        for (i = 0; i < currentbmus.length; i++) {
+          average_values[currentbmus[i]] += values[i];
+          samples_in_cell[currentbmus[i]] ++;
+          data_mean += values[i];
+          N_not_nan++;
+        }
+
+        data_mean = data_mean / N_not_nan;
+
+        plane_mean = 0;
+        plane_variance = 0;
+
+
+        // Calculating averages for each cell
+        for (i = 0; i < som.rows * som.cols; i++) {
+
+          if (samples_in_cell[i] > 0) {
+
+            average_values[i] = average_values[i] / samples_in_cell[i];
+          }
+        }
+
+
+        for (i = 0; i < som.rows * som.cols; i++) {
+          // If no samples in cell, interpolate value from surroundings
+          if (samples_in_cell[i] === 0) {
+
+            average_values[i] = 0;
+            cw = 0;
+            for (var j = 0; j < som.rows * som.cols; j++) {
+
+              if (samples_in_cell[j] > 0) {
+                w = som.weights[j * som.rows * som.cols + i];
+                cw += w;
+                average_values[i] += w * average_values[j];
+              }
+            }
+
+            average_values[i] = average_values[i] / cw;
+          }
+
+
+          plane_mean += average_values[i];
+        }
+
+
+        plane_mean = plane_mean / (som.rows * som.cols);
+
+        plane_variance = 0;
+
+        for (i = 0; i < som.rows * som.cols; i++) {
+
+          plane_variance += ((average_values[i] - plane_mean) * (average_values[i] - plane_mean));
+        }
+
+        plane_variance = plane_variance / (som.rows * som.cols);
+
+
+        /*  console.log('Real variance');
+        console.log(plane_variance);
+
+
+        console.log('Norm cdf ');
+        console.log(normalcdf(null_mean, null_stddev, plane_variance));
+        */
+
+        var pvalue = 1 - normalcdf(null_mean, null_stddev, plane_variance);
+
+        console.log('pvalue ');
+        console.log(pvalue);
+        // SMoothing
+
+        SOMUtils.update_weights(som, 1.5);
+        /*    som.neighdist = 2;
+        var map_distance_to_weight = new Float32Array(som.maxdistance+1); 
+        for(var i=0;i<=som.maxdistance;i++) {
+          map_distance_to_weight[i] = get_neighbourhood_coeff(i);
+        }
+
+        console.log("Weights");
+        console.log(map_distance_to_weight); */
+
+        var cw = 0;
+        w = 0;
+
+        var smooth_averages = new Float32Array(som.rows * som.cols);
+
+        for (i = 0; i < som.rows * som.cols; i++) {
+
+          cw = 0;
+
+          smooth_averages[i] = 0;
+
+          for (var n = 0; n < som.rows * som.cols; n++) {
+
+            w = som.weights[n * som.rows * som.cols + i];
+            cw += w;
+            smooth_averages[i] += w * average_values[n];
+
+          }
+
+          smooth_averages[i] = smooth_averages[i] / cw;
+
+
+        }
+
+        // -- drawing the plane
+        var maxvalue = _.max(smooth_averages);
+        var minvalue = _.min(smooth_averages);
+
+        var range = _.max([maxvalue - data_mean, data_mean - minvalue]) * 2;
+
+        // Adjusting the color range according to the statistical significance (p-value)
+
+        range = _.max([range, (-0.5 * (-Math.log10(pvalue) - 3) - 0.5) * range + range]);
+
+        var color_indices = new Float32Array(som.rows * som.cols);
+
+        var plane_object = {};
+        plane_object.cells = [];
+        plane_object.labels = [];
+        plane_object.variable = variable_name;
+        plane_object.pvalue = pvalue;
+        plane_object.size = {
+          'm': som.rows,
+          'n': som.cols
+        };
+
+
+        for (i = 0; i < som.rows * som.cols; i++) {
+
+          color_indices[i] = Math.floor(18 * (0.5 + (smooth_averages[i] - data_mean) / range));
+
+          plane_object.cells.push({
+            'x': i % som.cols + 1,
+            'y': Math.floor(i / som.cols) + 1,
+            'color': color_scale[color_indices[i]]
+          });
+
+        }
+
+        var step = (maxvalue - minvalue) / 7;
+        var stops = [minvalue, maxvalue].concat(_.range(minvalue + step, maxvalue - step, step));
+
+
+        var label_places = _.range(1, som.rows * som.cols);
+
+        function doSort(l) {
+          return _.chain(label_places)
+            .sortBy(function(n) {
+              return Math.abs(smooth_averages[n] - stops[l]);
+            })
+            .first()
+            .value();
+        }
+
+        for (var l = 0; l < stops.length; l++) {
+
+          i = doSort(l);
+          var new_places = [];
+
+          for (var k = 1; k < label_places.length; k++) {
+            if (som.distances[i * som.rows * som.cols + label_places[k]] > 2) {
+              new_places.push(label_places[k]);
             }
           }
 
-          average_values[i] = average_values[i] / cw;
-        }
+          label_places = new_places;
 
+          plane_object.labels.push({
+            'x': i % som.cols + 1,
+            'y': Math.floor(i / som.cols) + 1,
+            'color': '#000000',
+            'label': nice_round(smooth_averages[i])
+          });
 
-        plane_mean += average_values[i];
-      }
-
-
-      plane_mean = plane_mean / (som.rows * som.cols);
-
-      plane_variance = 0;
-
-      for (i = 0; i < som.rows * som.cols; i++) {
-
-        plane_variance += ((average_values[i] - plane_mean) * (average_values[i] - plane_mean));
-      }
-
-      plane_variance = plane_variance / (som.rows * som.cols);
-
-
-      /*  console.log('Real variance');
-      console.log(plane_variance);
-
-
-      console.log('Norm cdf ');
-      console.log(normalcdf(null_mean, null_stddev, plane_variance));
-      */
-
-      var pvalue = 1 - normalcdf(null_mean, null_stddev, plane_variance);
-
-      console.log('pvalue ');
-      console.log(pvalue);
-      // SMoothing
-
-      SOMUtils.update_weights(som, 1.5);
-      /*    som.neighdist = 2;
-      var map_distance_to_weight = new Float32Array(som.maxdistance+1); 
-      for(var i=0;i<=som.maxdistance;i++) {
-        map_distance_to_weight[i] = get_neighbourhood_coeff(i);
-      }
-
-      console.log("Weights");
-      console.log(map_distance_to_weight); */
-
-      var cw = 0;
-      w = 0;
-
-      var smooth_averages = new Float32Array(som.rows * som.cols);
-
-      for (i = 0; i < som.rows * som.cols; i++) {
-
-        cw = 0;
-
-        smooth_averages[i] = 0;
-
-        for (var n = 0; n < som.rows * som.cols; n++) {
-
-          w = som.weights[n * som.rows * som.cols + i];
-          cw += w;
-          smooth_averages[i] += w * average_values[n];
-
-        }
-
-        smooth_averages[i] = smooth_averages[i] / cw;
-
-
-      }
-
-
-
-      // -- drawing the plane
-
-
-
-      var maxvalue = _.max(smooth_averages);
-      var minvalue = _.min(smooth_averages);
-
-      var range = _.max([maxvalue - data_mean, data_mean - minvalue]) * 2;
-
-      // Adjusting the color range according to the statistical significance (p-value)
-
-      range = _.max([range, (-0.5 * (-Math.log10(pvalue) - 3) - 0.5) * range + range]);
-
-      var color_indices = new Float32Array(som.rows * som.cols);
-
-      var plane_object = {};
-      plane_object.cells = [];
-      plane_object.labels = [];
-      plane_object.variable = variable_name;
-      plane_object.pvalue = pvalue;
-      plane_object.size = {
-        'm': som.rows,
-        'n': som.cols
-      };
-
-
-      for (i = 0; i < som.rows * som.cols; i++) {
-
-        color_indices[i] = Math.floor(18 * (0.5 + (smooth_averages[i] - data_mean) / range));
-
-        plane_object.cells.push({
-          'x': i % som.cols + 1,
-          'y': Math.floor(i / som.cols) + 1,
-          'color': color_scale[color_indices[i]]
-        });
-
-      }
-
-      var step = (maxvalue - minvalue) / 7;
-      var stops = [minvalue, maxvalue].concat(_.range(minvalue + step, maxvalue - step, step));
-
-
-      var label_places = _.range(1, som.rows * som.cols);
-
-      function doSort(l) {
-        return _.chain(label_places)
-          .sortBy(function(n) {
-            return Math.abs(smooth_averages[n] - stops[l]);
-          })
-          .first()
-          .value();
-      }
-
-      for (var l = 0; l < stops.length; l++) {
-
-        i = doSort(l);
-        // var sorted = _.sortBy(label_places, function(n) {
-        //   return Math.abs(smooth_averages[n] - stops[l]);
-        // });
-
-        // i = sorted[0];
-
-        var new_places = [];
-
-        for (var k = 1; k < label_places.length; k++) {
-          if (som.distances[i * som.rows * som.cols + label_places[k]] > 2) {
-            new_places.push(label_places[k]);
+          if (label_places.length === 0) {
+            break;
           }
+
         }
 
-        label_places = new_places;
-
-        plane_object.labels.push({
-          'x': i % som.cols + 1,
-          'y': Math.floor(i / som.cols) + 1,
-          'color': '#000000',
-          'label': nice_round(smooth_averages[i])
-        });
-
-        if (label_places.length === 0) {
-          break;
-        }
+        return {
+          'plane': plane_object
+        };
 
       }
-
-      deferred.notify(100);
-      deferred.resolve({
-        'plane': plane_object
-      });
 
 
 
     }
 
+    checkWorkers();
+
+    var deferred = $q.defer();
+    _planeQueue.push(deferred.promise);
+
+    if (inProgress(_planeQueue, _planeWorkers)) {
+      doQueue(deferred, som, data_column);
+    } else {
+      doDefault(deferred, som, data_column);
+    }
+
     return deferred.promise;
-
-
   }
 
 
@@ -731,17 +811,149 @@ angular.module('services.som', [
 
 
   function train_ww(som) {
+    function doDefault(deferred, som) {
+      console.log('Starting SOM training');
+      som.codebook = ensureFloat32Array(som.codebook);
+      som.samples = ensureFloat32Array(som.samples);
+      som.distances = ensureFloat32Array(som.distances);
+      som.bmus = ensureFloat32Array(som.bmus);
+      som.weights = ensureFloat32Array(som.weights);
 
 
-    console.log('Starting SOM training');
-    som.codebook = ensureFloat32Array(som.codebook);
-    som.samples = ensureFloat32Array(som.samples);
-    som.distances = ensureFloat32Array(som.distances);
-    som.bmus = ensureFloat32Array(som.bmus);
-    som.weights = ensureFloat32Array(som.weights);
+      var currentsamples = som.samples;
+
+      var current_bmus,
+      new_neighbourhood_radius = som.start_neigh_dist,
+      cw = 0;
+
+      w = 0;
 
 
-    return run_SOM_epoch_ww(som);
+      var total_number_of_epochs = Math.ceil(-Math.log2(som.end_neigh_dist / som.start_neigh_dist)) * som.numEpochs;
+
+      var workerPromises = [];
+      for (w = 0; w < _num_workers; w++) {
+        obj = {
+          M: som.M,
+          N: som.N,
+          samples: som.sample_slices[w],
+          units: som.codebook
+        };
+        workerPromises[w] = _trainWorkers[w].run(obj, [som.sample_slices[w].buffer]);
+      }
+
+      var date1 = new Date();
+
+      $q.all(workerPromises).then(iterate,
+        function errFn(reasons) {
+          console.log('error', reasons);
+        });
+
+      function iterate(results) {
+        var current_bmus = results[0].payload.bmus;
+
+        for (var w = 1; w < _num_workers; w++) {
+          current_bmus = Float32Concat(current_bmus, results[w].payload.bmus);
+        }
+
+        deferred.notify(Math.round(som.epoch / total_number_of_epochs * 100));
+        new_neighbourhood_radius = som.start_neigh_dist / Math.pow(2, Math.floor(((som.epoch + 1) / som.numEpochs)));
+
+        if (new_neighbourhood_radius != som.neighdist) {
+          SOMUtils.update_weights(som, new_neighbourhood_radius);
+        }
+
+        // Update som
+        cw = 0;
+        w = 0;
+        var m = 0;
+
+        for (var i = 0; i < som.rows * som.cols; i++) {
+          cw = 0;
+
+          for (m = 0; m < som.M; m++) {
+            som.codebook[i * som.M + m] = 0;
+          }
+
+          for (var j = 0; j < current_bmus.length; j++) {
+            w = som.weights[current_bmus[j] * som.rows * som.cols + i];
+            cw += w;
+            for (m = 0; m < som.M; m++) {
+              som.codebook[i * som.M + m] += w * currentsamples[j * som.M + m];
+            }
+          }
+
+          for (m = 0; m < som.M; m++) {
+            som.codebook[i * som.M + m] = som.codebook[i * som.M + m] / cw;
+          }
+
+
+        }
+
+        som.epoch = som.epoch + 1;
+        console.log(som.epoch);
+
+        if (new_neighbourhood_radius > som.end_neigh_dist) {
+          for (w = 0; w < _num_workers; w++) {
+            obj = {
+              M: som.M,
+              N: som.N,
+              units: som.codebook
+            };
+            workerPromises[w] = _trainWorkers[w].run(obj);
+          }
+
+          $q.all(workerPromises).then(iterate, function errFn(reasons) {
+              console.log('error', reasons);
+          });
+
+        } else {
+          var date2 = new Date();
+          var diff = date2 - date1; //milliseconds interval
+          console.log('Training duration: ' + diff);
+
+          som.bmus = SOMUtils.get_best_matching_units(som.M, som.N, som.codebook, som.samples);
+
+
+          // finished, clear from queue
+          _.remove(_trainQueue, function(d) {
+            return d == deferred.promise;
+          });
+
+          deferred.notify(100);
+          deferred.resolve({
+            message: "SOM is trained"
+          });
+
+        }
+      }
+
+    }
+
+    function doQueue(deferred, som) {
+      var queueWithoutMe = _.without(_trainQueue, deferred.promise);
+      $q.all(queueWithoutMe).then(function succFn(res) {
+          doDefault(deferred, som);
+        }, function errFn(reason) {
+          console.log("error!", reason);
+        })
+        .finally(function() {
+          _.remove(_trainQueue, function(p) {
+            return p !== deferred.promise;
+          });
+        });
+    }
+
+    var deferred = $q.defer();
+    _trainQueue.push(deferred.promise);
+
+    if (inProgress(_trainQueue, _trainWorkers)) {
+      doQueue(deferred, som);
+    } else {
+      doDefault(deferred, som);
+    }
+
+    return deferred.promise;
   }
 
   function Float32Concat(first, second) {
@@ -754,169 +966,8 @@ angular.module('services.som', [
     return result;
   }
 
-
-  //-------------------------------------------------------------------------------------------------------
-  function run_SOM_epoch_ww(som) {
-
-    var deferred = $q.defer();
-
-
-    var absUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
-
-    var workers = [];
-    for (var w = 0; w < _num_workers; w++) {
-      workers[w] = WebWorkerService.create();
-      workers[w].script(get_best_matching_units_ww);
-      workers[w].addDependency(absUrl + 'vendor/' + 'lodash.min.js');
-      workers[w].addDependency(absUrl + 'src/' + 'utilities.som.js');
-      workers[w].onTerminate(function() {});
-    }
-
-    var currentsamples = som.samples;
-
-    var current_bmus,
-      new_neighbourhood_radius = som.start_neigh_dist,
-      cw = 0;
-
-    w = 0;
-
-
-    var total_number_of_epochs = Math.ceil(-Math.log2(som.end_neigh_dist / som.start_neigh_dist)) * som.numEpochs;
-
-
-    var workerPromises = [];
-    for (w = 0; w < _num_workers; w++) {
-      obj = {
-        M: som.M,
-        N: som.N,
-        samples: som.sample_slices[w],
-        units: som.codebook
-      };
-      workerPromises[w] = workers[w].run(obj, [som.sample_slices[w].buffer]);
-    }
-
-
-    var date1 = new Date();
-
-
-    $q.all(workerPromises).then(iterate, function errFn(reasons) {
-
-      console.log('error', reasons);
-
-    });
-
-
-
-    function iterate(results) {
-
-      var current_bmus = results[0].payload.bmus;
-
-
-      for (var w = 1; w < _num_workers; w++) {
-
-        current_bmus = Float32Concat(current_bmus, results[w].payload.bmus);
-
-      }
-
-      deferred.notify(Math.round(som.epoch / total_number_of_epochs * 100));
-
-      new_neighbourhood_radius = som.start_neigh_dist / Math.pow(2, Math.floor(((som.epoch + 1) / som.numEpochs)));
-
-      if (new_neighbourhood_radius != som.neighdist) {
-
-
-        SOMUtils.update_weights(som, new_neighbourhood_radius);
-
-
-      }
-
-      // Update som
-      cw = 0;
-      w = 0;
-
-      var m = 0;
-
-      for (var i = 0; i < som.rows * som.cols; i++) {
-
-        cw = 0;
-
-        for (m = 0; m < som.M; m++) {
-          som.codebook[i * som.M + m] = 0;
-        }
-
-        for (var j = 0; j < current_bmus.length; j++) {
-          w = som.weights[current_bmus[j] * som.rows * som.cols + i];
-          cw += w;
-          for (m = 0; m < som.M; m++) {
-            som.codebook[i * som.M + m] += w * currentsamples[j * som.M + m];
-          }
-        }
-
-        for (m = 0; m < som.M; m++) {
-          som.codebook[i * som.M + m] = som.codebook[i * som.M + m] / cw;
-        }
-
-
-      }
-
-      som.epoch = som.epoch + 1;
-      console.log(som.epoch);
-
-      if (new_neighbourhood_radius > som.end_neigh_dist) {
-
-        for (w = 0; w < _num_workers; w++) {
-          obj = {
-            M: som.M,
-            N: som.N,
-            units: som.codebook
-          };
-          workerPromises[w] = workers[w].run(obj);
-        }
-
-        $q.all(workerPromises).then(iterate, function errFn(reasons) {
-
-          console.log('error', reasons);
-
-        });
-
-      } else {
-        var date2 = new Date();
-        var diff = date2 - date1; //milliseconds interval
-        console.log('Training duration: ' + diff);
-
-        som.bmus = SOMUtils.get_best_matching_units(som.M, som.N, som.codebook, som.samples);
-
-
-        for (w = 0; w < _num_workers; w++) {
-          workers[w].terminate();
-          workers[w] = undefined;
-        }
-
-        workers = [];
-
-        deferred.notify(100);
-        deferred.resolve({
-          message: "SOM is trained"
-        });
-
-      }
-
-    }
-
-    return deferred.promise;
-
-
-    //som.bmus = get_best_matching_units(som, som.codebook, som.samples);
-
-
-  }
-
-
-
   //-------------------------------------------------------------------------------------------------------
   function set_training_data(input, output) {
-
-
     console.log('setting training data');
     var som = input.som;
     var data_columns = input.data;
@@ -962,8 +1013,6 @@ angular.module('services.som', [
     }
 
     if (output) output.notify(100);
-
-
     console.log('done!');
 
     var retObj = {
@@ -975,13 +1024,8 @@ angular.module('services.som', [
       }
     };
 
-
-
     if (output) output.success(retObj);
-
     return retObj;
-
-
   }
 
   return {
@@ -990,7 +1034,8 @@ angular.module('services.som', [
     "train": train_ww,
     "get_formatter_bmus": get_formatter_bmus,
     "calculate_component_plane": calculate_component_plane,
-    "noWorkers": noWorkers
+    "noWorkers": noWorkers,
+    "cancel": cancel
   };
 
 });
