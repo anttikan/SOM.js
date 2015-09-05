@@ -6,13 +6,16 @@ angular.module('akangas.services.som', [
 .factory('SOMComputeService', function SOMComputeService($q, WebWorkerService, _) {
 
   var _num_workers = 4,
-    that = this,
+    retobj = {},
     _planeWorkers = [],
     _trainWorkers = [],
     _initWorker = null,
     _initQueue = [],
     _planeQueue = [],
-    _trainQueue = [];
+    _trainQueue = [],
+    _dependencies = [];
+
+
 
   function cancel() {
     _.chain(_.union(_planeWorkers, _trainWorkers, _initWorker))
@@ -23,7 +26,14 @@ angular.module('akangas.services.som', [
     _planeWorkers.length = 0;
     _trainWorkers.length = 0;
     _initWorker = null;
-    return that;
+    return retobj;
+  }
+
+  function dependencies(x) {
+    if(!arguments.length) { return _dependencies; }
+    _dependencies = x;
+    initWorkers();
+    return retobj;
   }
 
   function noWorkers(x) {
@@ -31,7 +41,7 @@ angular.module('akangas.services.som', [
       return _num_workers;
     }
     _num_workers = x;
-    return that;
+    return retobj;
   }
 
   function inProgress(promises, workers) {
@@ -43,12 +53,13 @@ angular.module('akangas.services.som', [
 
   function initWorkers(count) {
     function getInitWorker() {
-      var absUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
       var worker = WebWorkerService.create()
         .script(set_training_data)
-        .addDependency(absUrl + 'vendor/' + 'lodash.min.js')
-        .addDependency(absUrl + 'src/' + 'utilities.som.js')
         .onTerminate(function() {});
+
+      _.each(_dependencies, function(dep) {
+        worker.addDependency(dep);
+      });
       return worker;
     }
 
@@ -58,9 +69,11 @@ angular.module('akangas.services.som', [
         var worker = WebWorkerService
           .create()
           .script(get_best_matching_units_ww)
-          .addDependency(absUrl + 'vendor/' + 'lodash.min.js')
-          .addDependency(absUrl + 'src/' + 'utilities.som.js')
           .onTerminate(function() {});
+
+        _.each(_dependencies, function(dep) {
+          worker.addDependency(dep);
+        });
         return worker;
       });
     }
@@ -71,9 +84,11 @@ angular.module('akangas.services.som', [
         var worker = WebWorkerService
           .create()
           .script(calculate_permutations)
-          .addDependency(absUrl + 'vendor/' + 'lodash.min.js')
-          .addDependency(absUrl + 'src/' + 'utilities.som.js')
           .onTerminate(function() {});
+
+        _.each(_dependencies, function(dep) {
+          worker.addDependency(dep);
+        });
         return worker;
       });
     }
@@ -88,8 +103,6 @@ angular.module('akangas.services.som', [
       initWorkers(_num_workers);
     }
   }
-
-  initWorkers(_num_workers);
 
   function create(rows, cols, sampleids, data) {
     function doDefault(deferred, payload) {
@@ -1027,14 +1040,17 @@ angular.module('akangas.services.som', [
     return retObj;
   }
 
-  return {
+  retobj = {
     "create": create,
     // "set_training_data": set_training_data,
     "train": train_ww,
     "get_formatter_bmus": get_formatter_bmus,
     "calculate_component_plane": calculate_component_plane,
     "noWorkers": noWorkers,
+    "dependencies": dependencies,
     "cancel": cancel
   };
+
+  return retobj;
 
 });

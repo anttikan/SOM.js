@@ -62,7 +62,14 @@
   ]);
 
   mainApp.run(function(SOMComputeService) {
-    SOMComputeService.noWorkers(4);
+    var absUrl = window.location.protocol + '//' + window.location.host + window.location.pathname,
+    dependencies = [
+      absUrl + 'vendor/' + 'lodash.min.js',
+      absUrl + 'src/' + 'utilities.som.js'
+    ];
+
+    SOMComputeService.noWorkers(4)
+    .dependencies(dependencies);
   });
 
   mainApp.controller('SOMController',
