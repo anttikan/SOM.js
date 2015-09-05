@@ -35,7 +35,6 @@ angular.module('services.som', [
   }
 
   function inProgress(promises, workers) {
-    console.log("inProgress", promises, workers);
     return !_.isEmpty(promises) ||
       _.any(workers, function(ww) {
         return ww.isBusy();
@@ -536,19 +535,19 @@ angular.module('services.som', [
       var date1 = new Date();
 
       $q.all(workerPromises).then(function succFn(results) {
-        deferred.notify(100);
-        var plane = calculate_plane_summary(results);
+          deferred.notify(100);
+          var plane = calculate_plane_summary(results);
 
-        deferred.resolve(plane);
-      }, function errFn(reasons) {
+          deferred.resolve(plane);
+        }, function errFn(reasons) {
           console.log('error', reasons);
-      })
-      .finally(function() {
-        // finished, clear from queue
-        _.remove(_planeQueue, function(d) {
-          return d == deferred.promise;
+        })
+        .finally(function() {
+          // finished, clear from queue
+          _.remove(_planeQueue, function(d) {
+            return d == deferred.promise;
+          });
         });
-      });
 
       function calculate_plane_summary(results) {
         var variances = results[0].payload.variances;
@@ -823,8 +822,8 @@ angular.module('services.som', [
       var currentsamples = som.samples;
 
       var current_bmus,
-      new_neighbourhood_radius = som.start_neigh_dist,
-      cw = 0;
+        new_neighbourhood_radius = som.start_neigh_dist,
+        cw = 0;
 
       w = 0;
 
@@ -904,7 +903,7 @@ angular.module('services.som', [
           }
 
           $q.all(workerPromises).then(iterate, function errFn(reasons) {
-              console.log('error', reasons);
+            console.log('error', reasons);
           });
 
         } else {
