@@ -1,4 +1,4 @@
-angular.module('services.som', [
+angular.module('akangas.services.som', [
   'services.webworker',
   'ext.lodash'
 ])

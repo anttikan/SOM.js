@@ -20,7 +20,7 @@
   <script type='text/javascript' src="src/services-webworker.js"></script>
   <script type="text/javascript" src="src/templates-common.js"></script>
   <script type='text/javascript' src="src/utilities.som.js"></script>
-  <script type='text/javascript' src="src/services-som.js"></script>
+  <script type='text/javascript' src="src/services-compute-som.js"></script>
 
 
 
@@ -57,9 +57,8 @@
 
   // Main app
   var mainApp = angular.module("mainApp", ['templates-common',
-    'services.webworker',
     'ext.lodash',
-    'services.som'
+    'akangas.services.som'
   ]);
 
   mainApp.run(function(SOMComputeService) {
