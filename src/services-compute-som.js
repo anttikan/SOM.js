@@ -24,7 +24,9 @@ angular.module('akangas.services.som', [
       })
       .value();
     _planeWorkers.length = 0;
+    _planeQueue.length = 0;
     _trainWorkers.length = 0;
+    _trainQueue.length = 0;
     _initWorker = null;
     return retobj;
   }
