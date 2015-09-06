@@ -28,6 +28,7 @@ angular.module('akangas.services.som', [
     _trainWorkers.length = 0;
     _trainQueue.length = 0;
     _initWorker = null;
+    _initQueue.length = 0;
     return retobj;
   }
 
