@@ -993,7 +993,7 @@ angular.module('akangas.services.som', [
     // som.batch_sample_size = _.min([som.N, 2000]);
     som.bmus = new Float32Array(som.N);
 
-    console.log(data_columns);
+    // console.log(data_columns);
 
     if (output) output.notify(10);
     SOMUtils.precalculate_distances(som);
