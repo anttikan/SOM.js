@@ -1,5 +1,14 @@
 (function(context) {
 
+  function sliceFloat32Array(source, begin, end) {
+    var target = new Float32Array(end - begin);
+
+    for (var i = 0; i < begin + end; ++i) {
+        target[i] = source[begin + i];
+    }
+    return target;
+  }
+
   function get_best_matching_units(M, N, units, samples) {
     var mindist = -1;
     var minind = -1;
@@ -286,6 +295,7 @@
     "preprocess_som_samples": preprocess_som_samples,
     "init_prototype_vectors": init_prototype_vectors,
     "update_weights": update_weights,
-    "get_best_matching_units": get_best_matching_units
+    "get_best_matching_units": get_best_matching_units,
+    "sliceFloat32Array": sliceFloat32Array
   };
 })(self);

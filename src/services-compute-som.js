@@ -1019,9 +1019,9 @@ angular.module('akangas.services.som', [
       end_index = (s + 1) * slice_length * som.M;
 
       if (end_index < som.samples.length) {
-        som.sample_slices[s] = som.samples.slice(start_index, end_index);
+        som.sample_slices[s] = SOMUtils.sliceFloat32Array(som.samples, start_index, end_index);
       } else {
-        som.sample_slices[s] = som.samples.slice(start_index, som.samples.length);
+        som.sample_slices[s] = SOMUtils.sliceFloat32Array(som.samples, start_index, som.samples.length);
       }
 
 
