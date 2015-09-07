@@ -1,14 +1,4 @@
 (function(context) {
-  if (!Float32Array.prototype.slice) {
-      Float32Array.prototype.slice = function (begin, end) {
-          var target = new Float32Array(end - begin);
-
-          for (var i = 0; i < begin + end; ++i) {
-              target[i] = this[begin + i];
-          }
-          return target;
-      };
-  }
 
   function get_best_matching_units(M, N, units, samples) {
     var mindist = -1;
