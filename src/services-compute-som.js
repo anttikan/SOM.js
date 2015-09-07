@@ -358,7 +358,9 @@ angular.module('akangas.services.som', [
 
     for (var it = 0; it < Nperm; it++) {
 
-      output.notify(Math.floor(it / Nperm * 100));
+      if(it % 50 == 0) {
+        output.notify(Math.floor(it / Nperm * 100));
+      }
 
       for (i = 0; i < input.rows * input.cols; i++) {
         average_values[i] = 0;
