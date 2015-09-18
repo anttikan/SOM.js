@@ -340,7 +340,7 @@ angular.module('akangas.services.som', [
 
     var currentbmus = new Float32Array(input.bmus.buffer);
     var values = new Float32Array(input.values.buffer);
-
+    var weights = new Float32Array(input.weights.buffer);
 
 
     var average_values = new Float32Array(input.rows * input.cols);
@@ -402,7 +402,7 @@ angular.module('akangas.services.som', [
           for (var j = 0; j < input.rows * input.cols; j++) {
 
             if (samples_in_cell[j] > 0) {
-              w = som.weights[j * input.rows * input.cols + i];
+              w = weights[j * input.rows * input.cols + i];
               cw += w;
               average_values[i] += w * average_values[j];
             }
@@ -533,6 +533,7 @@ angular.module('akangas.services.som', [
           cols: som.cols,
           bmus: currentbmus,
           codebook: som.codebook,
+          weights: som.weights,
           values: values,
           nperm: Nperm / _num_workers
         };
