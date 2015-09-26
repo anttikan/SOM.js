@@ -3,7 +3,7 @@ angular.module('akangas.services.som', [
   'ext.lodash'
 ])
 
-.factory('SOMComputeService', function SOMComputeService($q, WebWorkerService, _) {
+.factory('SOMComputeService', function SOMComputeService($q, WebWorkerService, _, $log) {
 
   var _num_workers = 4,
     retobj = {},
@@ -119,7 +119,8 @@ angular.module('akangas.services.som', [
             });
           },
           function errFn(err) {
-            console.log(['error', err]);
+            $log.error('SOM object init failed', err);
+            deferred.reject(err);
           },
 
           function notifyFn(progress) {
@@ -544,7 +545,7 @@ angular.module('akangas.services.som', [
       // so that all workers can pass notify information
       _.each(workerPromises, function(prom) {
         prom.then(function succFn() {}, function errFn(err) {
-          console.log("error", err);
+          $log.error('Worker promise failed', err);
         }, function notifyFn(progress) {
           deferred.notify(progress);
         });
@@ -558,7 +559,8 @@ angular.module('akangas.services.som', [
 
           deferred.resolve(plane);
         }, function errFn(reasons) {
-          console.log('error', reasons);
+          $log.error('Plane computation failed', reasons);
+          deferred.reject(reasons);
         })
         .finally(function() {
           // finished, clear from queue
