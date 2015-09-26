@@ -18,7 +18,7 @@ angular.module('akangas.services.som', [
 
 
   function cancel() {
-    _.chain(_.union(_planeWorkers, _trainWorkers, _initWorker))
+    _.chain(_.union(_planeWorkers, _trainWorkers, [_initWorker]))
       .each(function(worker) {
         worker.terminate();
       })
