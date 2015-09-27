@@ -20,7 +20,10 @@ angular.module('akangas.services.som', [
   function cancel() {
     _.chain(_.union(_planeWorkers, _trainWorkers, [_initWorker]))
       .each(function(worker) {
-        worker.terminate();
+        // could be null, do a little checking
+        if(worker) {
+          worker.terminate();
+        }
       })
       .value();
     _planeWorkers.length = 0;
