@@ -107,6 +107,31 @@ angular.module('akangas.services.som', [
     }
   }
 
+
+
+  function init(rows,cols,bmus,codebook,distances,weights) {
+      console.log('Initializing SOM..');
+
+      var som = {};
+      som.epoch = 0;
+      som.rows = rows;
+      som.cols = cols;
+
+      som.M = codebook.length / (rows*cols);
+      som.N = bmus.length;
+
+      
+      som.codebook = codebook;
+      som.distances = distances;
+      som.weights = weights;
+      som.bmus = bmus;
+
+
+      return som;
+
+  }
+
+
   function create(rows, cols, sampleids, data) {
     function doDefault(deferred, payload) {
       var workerPromise = _initWorker.run(payload);
@@ -226,6 +251,8 @@ angular.module('akangas.services.som', [
     }
 
   }
+
+
 
 
   function normalcdf(mean, sigma, to) {
@@ -452,7 +479,7 @@ angular.module('akangas.services.som', [
 
 
   //-------------------------------------------------------------------------------------------------------
-  function calculate_component_plane(som, sampleids, data_column, variable_name) {
+  function calculate_component_plane(som, data_column, variable_name) {
     function doQueue(deferred, som, data_column) {
       var queueWithoutMe = _.without(_planeQueue, deferred.promise);
       $q.all(queueWithoutMe).then(function succFn(res) {
@@ -468,15 +495,14 @@ angular.module('akangas.services.som', [
     }
 
     function doDefault(deferred, som, data_column) {
+      
       data_column = ensureFloat32Array(data_column);
       som.codebook = ensureFloat32Array(som.codebook);
-      som.samples = ensureFloat32Array(som.samples);
       som.distances = ensureFloat32Array(som.distances);
       som.bmus = ensureFloat32Array(som.bmus);
       som.weights = ensureFloat32Array(som.weights);
 
-      som.bmus = SOMUtils.get_best_matching_units(som.M, som.N, som.codebook, som.samples);
-
+      
       valuearr = [];
       var index, i = 0;
 
@@ -484,15 +510,9 @@ angular.module('akangas.services.som', [
 
       for (i = 0; i < data_column.length; i++) {
 
-        index = _.findIndex(som.sampleids, sampleids[i]);
-        if (index < 0) {
-          console.log('Sample' + sampleids[i] + " not found");
-          continue;
-        }
-
         if (!isNaN(data_column[i])) {
           valuearr.push(data_column[i]);
-          currentbmusarr.push(som.bmus[index]);
+          currentbmusarr.push(som.bmus[i]);
         }
 
       }
@@ -500,10 +520,13 @@ angular.module('akangas.services.som', [
       values = new Float32Array(valuearr.length);
       currentbmus = new Float32Array(valuearr.length);
 
+
       for (i = 0; i < valuearr.length; i++) {
         values[i] = valuearr[i];
         currentbmus[i] = currentbmusarr[i];
       }
+
+      
 
       var color_scale = ["#4682b4", "#5e8fbc", "#759dc5",
         "#89a9cd", "#9db8d5", "#b1c6de",
@@ -1048,6 +1071,7 @@ angular.module('akangas.services.som', [
 
   retobj = {
     "create": create,
+    "init": init,
     // "set_training_data": set_training_data,
     "train": train_ww,
     "get_formatter_bmus": get_formatter_bmus,

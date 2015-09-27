@@ -108,11 +108,15 @@
 
         var promises = [];
 
+
+        console.log('Creating a copy of the existing SOM');
+        _s = SOMComputeService.init(_s.rows,_s.cols,_s.bmus.slice(),_s.codebook.slice(),_s.distances.slice(),_s.weights.slice());
+
+
         for (var ind = 0; ind < plane_spec.length; ++ind) {
           $scope.Task = "Drawing component plane for " + plane_spec[ind].name;
           var promise = SOMComputeService.calculate_component_plane(
             _s,
-            sampleids,
             plane_spec[ind].data,
             plane_spec[ind].name
           );
