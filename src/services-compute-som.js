@@ -109,7 +109,7 @@ angular.module('akangas.services.som', [
 
 
 
-  function init(rows,cols,bmus,codebook,distances,weights) {
+  function init(rows,cols,sampleids,bmus,codebook,distances,weights) {
       console.log('Initializing SOM..');
 
       var som = {};
@@ -120,6 +120,7 @@ angular.module('akangas.services.som', [
       som.M = codebook.length / (rows*cols);
       som.N = bmus.length;
 
+      som.sampleids = sampleids;
       
       som.codebook = codebook;
       som.distances = distances;
@@ -479,7 +480,7 @@ angular.module('akangas.services.som', [
 
 
   //-------------------------------------------------------------------------------------------------------
-  function calculate_component_plane(som, data_column, variable_name) {
+  function calculate_component_plane(som, sampleids, data_column, variable_name) {
     function doQueue(deferred, som, data_column) {
       var queueWithoutMe = _.without(_planeQueue, deferred.promise);
       $q.all(queueWithoutMe).then(function succFn(res) {
@@ -502,6 +503,8 @@ angular.module('akangas.services.som', [
       som.bmus = ensureFloat32Array(som.bmus);
       som.weights = ensureFloat32Array(som.weights);
 
+      //som.bmus = SOMUtils.get_best_matching_units(som.M, som.N, som.codebook, som.samples);
+
       
       valuearr = [];
       var index, i = 0;
@@ -509,6 +512,12 @@ angular.module('akangas.services.som', [
       var currentbmusarr = [];
 
       for (i = 0; i < data_column.length; i++) {
+
+       index = _.findIndex(som.sampleids, sampleids[i]);
+        if (index < 0) {
+          console.log('Sample' + sampleids[i] + " not found");
+          continue;
+        } 
 
         if (!isNaN(data_column[i])) {
           valuearr.push(data_column[i]);
