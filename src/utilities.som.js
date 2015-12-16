@@ -4,6 +4,12 @@ Math.log2 = Math.log2 || function(x) {
   return Math.log(x) / Math.LN2;
 };
 
+// log10 polyfill, see
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/log10
+Math.log10 = Math.log10 || function(x) {
+  return Math.log(x) / Math.LN10;
+};
+
 (function(context) {
 
   function sliceFloat32Array(source, begin, end) {
