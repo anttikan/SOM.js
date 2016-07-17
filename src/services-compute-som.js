@@ -516,11 +516,11 @@ angular.module('akangas.services.som', [
 
       for (i = 0; i < data_column.length; i++) {
 
-       index = _.findIndex(som.sampleids, sampleids[i]);
+       /*index = _.findIndex(som.sampleids, sampleids[i]);
         if (index < 0) {
           console.log('Sample' + sampleids[i] + " not found");
           continue;
-        } 
+        }*/
 
         if (!isNaN(data_column[i])) {
           valuearr.push(data_column[i]);
