@@ -187,6 +187,113 @@ Math.log10 = Math.log10 || function(x) {
 
     var val = 0;
 
+    
+    if(som.pivotcolumn) {
+      
+      console.log('Yes!')
+
+      var category_counts = [];
+      var category_indices = [];
+      
+
+      for(var i=0; i<som.N; i++) {
+        
+        if(isNaN(som.pivotcolumn[i])) {
+          console.log('No NaN\'s allowed in pivotcolumn');
+          break;
+        }
+
+        if(!category_counts[som.pivotcolumn[i]]) {
+          category_counts[som.pivotcolumn[i]] = 1;
+          category_indices[som.pivotcolumn[i]] = [i];
+        } else {
+          category_counts[som.pivotcolumn[i]]++;
+          category_indices[som.pivotcolumn[i]].push(i);
+        }
+      }
+
+      console.log('There are '+Object.keys(category_counts).length+' categories.');
+      console.log(category_counts);
+      console.log(category_indices);
+
+      var category_averages = [];
+
+      // Calculating means for each category
+      for(var category in category_indices) {
+
+          var sums = new Float32Array(som.M);
+          var counts = new Float32Array(som.M);
+          
+          category_averages[category] = [];
+
+          for(var j=0;j<som.M;j++) {
+            
+            sums[j] = 0;
+            counts[j] = 0;
+
+            for(var n=0;n<category_indices[category].length;n++) {
+
+              if(!isNaN(original_values[j][category_indices[category][n]])) {
+                sums[j] += original_values[j][category_indices[category][n]];  
+                counts[j]++;
+              }
+             
+            }
+
+            category_averages[category][j] = sums[j]/counts[j];
+          }
+
+      }
+
+      console.log('Averages by category : ' + category_averages);
+
+      var category_stdevs = [];
+
+      // Calculating stdevs for each category
+      for(var category in category_indices) {
+
+          var sums = new Float32Array(som.M);
+          var counts = new Float32Array(som.M);
+          
+          category_stdevs[category] = [];
+
+          for(var j=0;j<som.M;j++) {
+            
+            sums[j] = 0;
+            counts[j] = 0;
+
+            for(var n=0;n<category_indices[category].length;n++) {
+
+
+              if(!isNaN(original_values[j][category_indices[category][n]])) {
+
+                sums[j] += Math.pow(original_values[j][category_indices[category][n]] - category_averages[category][j],2);
+                counts[j]++;
+
+              }
+             
+            }
+
+            category_stdevs[category][j] = Math.sqrt(sums[j]/counts[j]);
+          }
+
+      }
+
+      console.log('Std. devs by category: ' +category_stdevs);
+
+     // Normalizing
+      for(var category in category_indices) {
+          for(var j=0;j<som.M;j++) {
+            for(var n=0;n<category_indices[category].length;n++) {
+              original_values[j][category_indices[category][n]] = (original_values[j][category_indices[category][n]] - category_averages[category][j])/category_stdevs[category][j];
+            }
+          }
+      }
+
+    }
+
+
+
     for(var j=0;j<som.M;j++) {
       console.log(j);
 

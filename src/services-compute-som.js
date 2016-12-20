@@ -136,7 +136,8 @@ angular.module('akangas.services.som', [
   }
 
 
-  function create(rows, cols, sampleids, data) {
+  function create(rows, cols, sampleids, data, pivotcolumn) {
+
     function doDefault(deferred, payload) {
       var workerPromise = _initWorker.run(payload);
 
@@ -179,11 +180,13 @@ angular.module('akangas.services.som', [
 
     function getObject() {
       console.log('Initializing SOM..');
+      
 
       var som = {};
       som.epoch = 0;
       som.rows = rows;
       som.cols = cols;
+      som.pivotcolumn = pivotcolumn;
       som.M = data.length;
       som.N = sampleids.length;
       // som.batch_sample_size = 200;

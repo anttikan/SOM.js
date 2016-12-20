@@ -305,8 +305,8 @@
         if (error) return console.warn(error);
 
         var training_vars =
-          ["XXL-VLDL-L", "XL-VLDL-L", "L-VLDL-L", "M-VLDL-L",
-            "S-VLDL-L", "XS-VLDL-L", "IDL-L", "L-LDL-L", "M-LDL-L",
+          ["Glc", "XXL-VLDL-L", "XL-VLDL-L", "L-VLDL-L", "M-VLDL-L",
+            "S-VLDL-L", "XS-VLDL-L", "IDL-L", "Glucose", "M-LDL-L",
             "S-LDL-L", "XL-HDL-L", "L-HDL-L", "M-HDL-L", "S-HDL-L"
           ];
 
@@ -317,10 +317,17 @@
         sampleids = res.sampleids;
         data_columns = res.data_columns;
 
+        for(var k=0; k<data_columns[0].length; k++) {
+          data_columns[data_columns.length-1][k] = (data_columns[0][k]>5)?0:1;
+          if(isNaN(data_columns[data_columns.length-1][k])) {
+            data_columns[data_columns.length-1][k] = 1;
+          }
+        }
+
         $scope.Task = "Initializing...";
         $scope.NumRows = sampleids.length;
 
-        SOMComputeService.create(7, 9, sampleids, data_columns)
+        SOMComputeService.create(7, 9, sampleids, data_columns.slice(0,data_columns.length-1), data_columns[data_columns.length-1])
           .then(
             function succFn(result) {
 
