@@ -305,9 +305,9 @@
         if (error) return console.warn(error);
 
         var training_vars =
-          ["Glc", "XXL-VLDL-L", "XL-VLDL-L", "L-VLDL-L", "M-VLDL-L",
-            "S-VLDL-L", "XS-VLDL-L", "IDL-L", "Glucose", "M-LDL-L",
-            "S-LDL-L", "XL-HDL-L", "L-HDL-L", "M-HDL-L", "S-HDL-L"
+          ["XXL-VLDL-L", "XL-VLDL-L", "L-VLDL-L", "M-VLDL-L",
+            "S-VLDL-L", "XS-VLDL-L", "IDL-L", "L-LDL-L", "M-LDL-L",
+            "S-LDL-L", "XL-HDL-L", "L-HDL-L", "M-HDL-L", "S-HDL-L", "Glc"
           ];
 
         // Picks the specified values and sample ids from data object 
@@ -317,8 +317,10 @@
         sampleids = res.sampleids;
         data_columns = res.data_columns;
 
+        
+
         for(var k=0; k<data_columns[0].length; k++) {
-          data_columns[data_columns.length-1][k] = (data_columns[0][k]>5)?0:1;
+          data_columns[data_columns.length-1][k] = (data_columns[data_columns.length-1][k]>5)?0:1;
           if(isNaN(data_columns[data_columns.length-1][k])) {
             data_columns[data_columns.length-1][k] = 1;
           }
