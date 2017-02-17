@@ -543,12 +543,15 @@ angular.module('akangas.services.som', [
 
       
 
-      var color_scale = ["#4682b4", "#5e8fbc", "#759dc5",
-        "#89a9cd", "#9db8d5", "#b1c6de",
-        "#c5d3e6", "#d8e1ee", "#ecf0f7",
-        "#ffffff", "#fff1ef", "#ffe5e0",
-        "#ffd7cf", "#ffc9c0", "#ffbbb0",
-        "#ffada0", "#ff9d90", "#fd8f80", "#fa8072"
+      var color_scale = ["#001FFF", "#0225FF", "#052CFF", "#0A33FF", "#103BFF", 
+      "#1744FF", "#1E4DFF", "#2658FF", "#2F63FF", "#386EFF", "#427BFF", 
+      "#4C87FF", "#5794FF", "#62A1FF", "#6EAEFF", "#7ABAFF", "#86C6FF", 
+      "#93D1FF", "#A0DCFF", "#AEE5FF", "#BCEDFF", "#CAF4FF", "#D8F9FF", 
+      "#E7FDFF", "#F7FFFF", "#FFFFF7", "#FFFDE7", "#FFF9D8", "#FFF4CA", 
+      "#FFEDBC", "#FFE5AE", "#FFDCA0", "#FFD193", "#FFC686", "#FFBA7A", 
+      "#FFAE6E", "#FFA162", "#FF9457", "#FF874C", "#FF7B42", "#FF6E38", 
+      "#FF632F", "#FF5826", "#FF4D1E", "#FF4417", "#FF3B10", "#FF330A", 
+      "#FF2C05", "#FF2502", "#FF1F00"
       ];
 
       var average_values = new Float32Array(som.rows * som.cols);
