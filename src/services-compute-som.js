@@ -776,7 +776,7 @@ angular.module('akangas.services.som', [
 
         for (i = 0; i < som.rows * som.cols; i++) {
 
-          color_indices[i] = Math.floor(18 * (0.5 + (smooth_averages[i] - data_mean) / range));
+          color_indices[i] = Math.floor( (color_scale.length - 1) * (0.5 + (smooth_averages[i] - data_mean) / range));
 
           plane_object.cells.push({
             'x': i % som.cols + 1,
