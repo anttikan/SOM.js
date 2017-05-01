@@ -4,7 +4,7 @@ angular.module('services.webworker', [
 
 .constant('WORKER_TEMPLATE', 'web-worker.tpl.html')
 
-.factory('WebWorkerService', function WebWorkerService($q, _, $templateCache, WORKER_TEMPLATE) {
+.factory('WebWorkerService', ["$q", "$templateCache", "WORKER_TEMPLATE", function WebWorkerService($q, _, $templateCache, WORKER_TEMPLATE) {
 
   var _instances = [];
 
@@ -147,4 +147,4 @@ angular.module('services.webworker', [
   };
   return _service;
 
-});
+}]);

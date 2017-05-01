@@ -3,7 +3,7 @@ angular.module('akangas.services.som', [
   'ext.lodash'
 ])
 
-.factory('SOMComputeService', function SOMComputeService($q, WebWorkerService, _, $log) {
+.factory('SOMComputeService', ["$q", "WebWorkerService", "_", "$log", function SOMComputeService($q, WebWorkerService, _, $log) {
 
   var _num_workers = 4,
     retobj = {},
@@ -1101,4 +1101,4 @@ angular.module('akangas.services.som', [
 
   return retobj;
 
-});
+}]);
